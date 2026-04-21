@@ -799,7 +799,7 @@ function fetchDashData(){
     .then(r=>r.json())
     .then(d=>{
       if(d.status==='ok'&&d.data&&d.data.length){
-        DASH_DATA=d.data;
+        DASH_DATA=d.data.map(r=>({...r, qr:r.qs||[]}));
         renderDash();
       } else {
         // fallback 到 localStorage
