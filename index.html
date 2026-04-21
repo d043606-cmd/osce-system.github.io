@@ -780,7 +780,53 @@ function goPatient(){
 function goTrainee(){document.getElementById('nurse-img').src=IMGS.nurse;setBg(IMGS.nurse);show('s-trainee');speak("受評估者背景。新進護理人員，入職一個月，今日將在臨床教師引導下執行血液培養採檢。")}
 function startOSCE(){curQ=0;score=0;qr=Array(10).fill(null);t0=Date.now();rats={};ans=false;fromResult=false;document.getElementById('hud').classList.add('on');document.querySelectorAll('.scr').forEach(s=>s.classList.add('hidden'));loadQ()}
 function goSurvey(){speak("考核完成，請針對本次AI擬真互動教案進行滿意度評核。");show('s-survey')}
-function goDash(back){fromResult=!!back;document.getElementById('B_back_sv').style.display=fromResult?'block':'none';renderDash();show('s-dash');switchTab('ov')}
+function goDash(back){
+  fromResult=!!back;
+  document.getElementById('B_back_sv').style.display=fromResult?'block':'none';
+  show('s-dash');switchTab('ov');
+  fetchDashData();
+}
+
+// 從試算表抓取所有資料
+let DASH_DATA=[];
+function fetchDashData(){
+  const tabs=['t-ov','t-qs','t-st','t-rc'];
+  tabs.forEach(t=>{
+    const el=document.getElementById(t);
+    if(el) el.innerHTML='<p style="color:rgba(255,255,255,.5);font-size:.8rem;padding:1rem 0;text-align:center">⏳ 從雲端載入資料中...</p>';
+  });
+  fetch(APPS_URL+'?action=getData')
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.status==='ok'&&d.data&&d.data.length){
+        DASH_DATA=d.data;
+        renderDash();
+      } else {
+        // fallback 到 localStorage
+        DASH_DATA=loadR().map(r=>({
+          ts:r.ts||'',name:r.name||'',seniority:r.seniority||'',dept:r.dept||'',
+          testType:r.testType||'practice',score:r.score||0,pass:r.pass||false,
+          dur:r.dur||0,qs:r.qs||[],
+          s1:r.s1||0,s2:r.s2||0,s3:r.s3||0,s4:r.s4||0,s5:r.s5||0,
+          s6:r.s6||0,s7:r.s7||0,s8:r.s8||0,
+          aiReadSec:r.aiReadSec||0,comment:r.comment||''
+        }));
+        renderDash();
+      }
+    })
+    .catch(()=>{
+      // 網路錯誤 fallback
+      DASH_DATA=loadR().map(r=>({
+        ts:r.ts||'',name:r.name||'',seniority:r.seniority||'',dept:r.dept||'',
+        testType:r.testType||'practice',score:r.score||0,pass:r.pass||false,
+        dur:r.dur||0,qs:r.qs||[],
+        s1:r.s1||0,s2:r.s2||0,s3:r.s3||0,s4:r.s4||0,s5:r.s5||0,
+        s6:r.s6||0,s7:r.s7||0,s8:r.s8||0,
+        aiReadSec:r.aiReadSec||0,comment:r.comment||''
+      }));
+      renderDash();
+    });
+}
 
 function loadQ(){
   if(curQ>=OSCE.length){finishOSCE();return}
@@ -880,12 +926,12 @@ function submitSurvey(){
 }
 
 function switchTab(id){document.querySelectorAll('.tp').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));document.getElementById('t-'+id).classList.add('active')}
-function renderDash(){rdOV();rdQS();rdST();rdRC()}
+function renderDash(){rdOV();rdQS();rdST();rdRC();}
 function bc(p){return p>=80?'#39ff14':p>=60?'#fcd34d':'#ff3553'}
 function stars(n){const r=Math.round(n);return'★'.repeat(r)+'☆'.repeat(5-r)}
 
 function rdOV(){
-  const el=document.getElementById('t-ov'),R=loadR();
+  const el=document.getElementById('t-ov'),R=DASH_DATA.length?DASH_DATA:loadR();
   if(!R.length){el.innerHTML='<p style="color:rgba(255,255,255,.35);font-size:.78rem;padding:.75rem 0">尚無考核紀錄</p>';return}
   const t=R.length,p=R.filter(r=>r.pass).length,pr=Math.round(p/t*100);
   const as=(R.reduce((s,r)=>s+(r.score||0),0)/t).toFixed(1);
@@ -919,7 +965,7 @@ function rdOV(){
   }
 }
 function rdQS(){
-  const el=document.getElementById('t-qs'),R=loadR();
+  const el=document.getElementById('t-qs'),R=DASH_DATA.length?DASH_DATA:loadR();
   if(!R.length){el.innerHTML='<p style="color:rgba(255,255,255,.35);font-size:.78rem;padding:.75rem 0">尚無考核紀錄</p>';return}
   const nm=["核對醫囑","手部衛生","身份辨識","採血部位","靜脈抽血","試管順序","試管混合","止血處理","多選注意","溶血分析"];
   const st=nm.map((n,i)=>{const f=R.filter(r=>r.qr&&r.qr[i]>=0),c=f.filter(r=>r.qr[i]===1).length,rt=f.length?Math.round(c/f.length*100):null;return{n,rt}});
@@ -936,7 +982,7 @@ function rdQS(){
     <div class="dc"><div class="dt">💣 地雷題排行</div>${danger||'<p style="color:rgba(255,255,255,.35);font-size:.72rem">目前無明顯地雷題</p>'}</div>`;
 }
 function rdST(){
-  const el=document.getElementById('t-st'),R=loadR(),f=R.filter(r=>r.s1>0||r.s2>0);
+  const el=document.getElementById('t-st'),R=DASH_DATA.length?DASH_DATA:loadR(),f=R.filter(r=>r.s1>0||r.s2>0);
   if(!f.length){el.innerHTML='<p style="color:rgba(255,255,255,.35);font-size:.78rem;padding:.75rem 0">尚無問卷資料</p>';return}
   const dims=['步驟記憶幫助','AI語音壓力感','臨床誘答性','AI學習建議幫助','整體滿意度','操作流暢度','情境真實性','臨床信心提升'];
   const keys=['s1','s2','s3','s4','s5','s6','s7','s8'];
@@ -966,7 +1012,7 @@ function rdST(){
   <div class="dc"><div class="dt">💬 學員建議（最新5筆）</div>${cmt||'<p style="color:rgba(255,255,255,.35);font-size:.72rem">尚無建議</p>'}</div>`;
 }
 function rdRC(){
-  const el=document.getElementById('t-rc'),R=loadR();
+  const el=document.getElementById('t-rc'),R=DASH_DATA.length?DASH_DATA:loadR();
   if(!R.length){el.innerHTML='<p style="color:rgba(255,255,255,.35);font-size:.78rem;padding:.75rem 0">尚無歷史紀錄</p>';return}
   const senMap={'student':'護生','0-3m':'<3月','3-6m':'3-6月','6m-1y':'6月-1年','1y+':'1年+','':`—`};
   const typeMap={'pre':'前測','post':'後測','practice':'練習','':`—`};
